@@ -1,25 +1,11 @@
-const usedTokens = new Set();
 const ipRequests = new Map();
+const ipFirstSeen = new Map();
 
 export default function handler(req, res) {
   const userAgent = req.headers['user-agent'] || '';
-  const ip = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown';
+  const ip = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown';
   const now = Date.now();
 
-  // Rate limiting - max 3 requesty na 10 sekund z jednego IP
-  const lastRequests = ipRequests.get(ip) || [];
-  const recentRequests = lastRequests.filter(t => now - t < 10000);
-  
-  if (recentRequests.length >= 3) {
-    console.log(`[BLOCKED] Rate limit exceeded for IP: ${ip}`);
-    res.status(429).send('-- Rate limit exceeded. Wait 10 seconds.');
-    return;
-  }
-  
-  recentRequests.push(now);
-  ipRequests.set(ip, recentRequests);
-
-  // Troll page dla przegladarek
   if (!userAgent.toLowerCase().includes('roblox')) {
     const trollPage = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Not Found</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0a0a0a;color:#fff;font-family:'Arial Black',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;overflow:hidden;text-align:center}.emoji{font-size:180px;display:block;margin-bottom:20px}.big-text{font-size:120px;font-weight:900;color:#fff;line-height:1.1;letter-spacing:-3px}.subtitle{font-size:28px;color:#888;margin-top:20px;font-weight:bold}.link{display:inline-block;margin-top:40px;padding:15px 40px;background:#fff;color:#000;text-decoration:none;border-radius:8px;font-size:18px;font-weight:bold;transition:transform .3s}.link:hover{transform:scale(1.05)}</style></head><body><div><div class="emoji">&#128526;</div><div class="big-text">Not Found</div><div class="subtitle">You cannot access this resource</div><a href="https://sm-vault-xyz.vercel.app/" class="link">Buy Source Code</a></div></body></html>`;
     res.setHeader('Content-Type', 'text/html');
@@ -27,13 +13,70 @@ export default function handler(req, res) {
     return;
   }
 
-  // Generuj unikatowy token dla tego requestu
-  const requestToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+  const lastRequests = ipRequests.get(ip) || [];
+  const recentRequests = lastRequests.filter(t => now - t < 5000);
   
-  // Waznie: wyczysc stare tokeny (po 60 sekundach)
-  if (usedTokens.size > 1000) {
-    usedTokens.clear();
+  const isSuspicious = recentRequests.length >= 1;
+  
+  recentRequests.push(now);
+  ipRequests.set(ip, recentRequests);
+
+  if (ipRequests.size > 500) {
+    const oldIps = [];
+    for (const [key, val] of ipRequests.entries()) {
+      if (val.every(t => now - t > 60000)) oldIps.push(key);
+    }
+    oldIps.forEach(k => ipRequests.delete(k));
   }
+
+  if (isSuspicious) {
+    const fakeLua = [
+      'local Players = game:GetService("Players")',
+      'local player = Players.LocalPlayer',
+      'local parent = (gethui and gethui()) or game:GetService("CoreGui")',
+      'pcall(function()',
+      '    for _, v in pairs(parent:GetChildren()) do',
+      '        if v.Name == "STOLEN_WARNING" then v:Destroy() end',
+      '    end',
+      'end)',
+      'local gui = Instance.new("ScreenGui")',
+      'gui.Name = "STOLEN_WARNING"',
+      'gui.IgnoreGuiInset = true',
+      'gui.DisplayOrder = 999999',
+      'gui.ResetOnSpawn = false',
+      'gui.Parent = parent',
+      'local frame = Instance.new("Frame", gui)',
+      'frame.Size = UDim2.new(1, 0, 1, 0)',
+      'frame.BackgroundColor3 = Color3.fromRGB(200, 0, 0)',
+      'frame.BorderSizePixel = 0',
+      'local text = Instance.new("TextLabel", frame)',
+      'text.Size = UDim2.new(1, 0, 0.5, 0)',
+      'text.Position = UDim2.new(0, 0, 0.25, 0)',
+      'text.BackgroundTransparency = 1',
+      'text.Text = "STOLEN SCRIPT DETECTED"',
+      'text.TextColor3 = Color3.fromRGB(255, 255, 255)',
+      'text.TextScaled = true',
+      'text.Font = Enum.Font.GothamBold',
+      'local sub = Instance.new("TextLabel", frame)',
+      'sub.Size = UDim2.new(1, 0, 0.1, 0)',
+      'sub.Position = UDim2.new(0, 0, 0.65, 0)',
+      'sub.BackgroundTransparency = 1',
+      'sub.Text = "Buy the real one at https://sm-vault-xyz.vercel.app/"',
+      'sub.TextColor3 = Color3.fromRGB(255, 255, 255)',
+      'sub.TextScaled = true',
+      'sub.Font = Enum.Font.Gotham',
+      'warn("[SM-VAULT] STOLEN SCRIPT DETECTED - Buy at https://sm-vault-xyz.vercel.app/")',
+      'warn("[SM-VAULT] Rate limit triggered - suspicious behavior")',
+      'for i = 1, 20 do print("STOLEN SCRIPT - BUY AT https://sm-vault-xyz.vercel.app/") end'
+    ].join('\n');
+    
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).send(fakeLua);
+    return;
+  }
+
+  const requestToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
 
   const lua = [
     'local REQUEST_TOKEN = "' + requestToken + '"',
@@ -51,32 +94,27 @@ export default function handler(req, res) {
     '    end',
     'end',
     '',
-    'DebugLog("INFO", "Token: " .. REQUEST_TOKEN:sub(1, 8) .. "...")',
+    'DebugLog("INFO", "Loading SM-VAULT v5.1")',
     '',
-    'if _G.SM_VAULT_LOADED_TOKENS then',
-    '    if _G.SM_VAULT_LOADED_TOKENS[REQUEST_TOKEN] then',
-    '        DebugLog("ERROR", "Token already used - possible clipboard theft!", "Do not use setclipboard on the URL")',
-    '        return',
-    '    end',
-    'else',
-    '    _G.SM_VAULT_LOADED_TOKENS = {}',
+    'if not _G.SM_VAULT_TOKENS then _G.SM_VAULT_TOKENS = {} end',
+    'if _G.SM_VAULT_TOKENS[REQUEST_TOKEN] then',
+    '    DebugLog("ERROR", "Duplicate token detected", "Clipboard theft prevented")',
+    '    return',
     'end',
-    '_G.SM_VAULT_LOADED_TOKENS[REQUEST_TOKEN] = true',
+    '_G.SM_VAULT_TOKENS[REQUEST_TOKEN] = true',
     '',
     'local originalClipboard = {}',
     'local clipboardBlocked = 0',
     '',
     'local function BlockedClipboard(text)',
     '    if type(text) == "string" then',
-    '        if text:find("REQUEST_TOKEN") or text:find("lua%-drab") or text:find("HttpGet") or text:find("loadstring") or text:find("sm%-vault") or #text > 500 then',
+    '        if text:find("lua%-drab") or text:find("HttpGet") or text:find("loadstring") or text:find("sm%-vault") or #text > 500 then',
     '            clipboardBlocked = clipboardBlocked + 1',
-    '            DebugLog("WARNING", "Clipboard BLOCKED (attempt #" .. clipboardBlocked .. ")", "Anti-theft protection")',
+    '            DebugLog("WARNING", "Clipboard BLOCKED attempt #" .. clipboardBlocked, "Anti-theft")',
     '            return nil',
     '        end',
     '    end',
-    '    if originalClipboard.setclipboard then',
-    '        return originalClipboard.setclipboard(text)',
-    '    end',
+    '    if originalClipboard.setclipboard then return originalClipboard.setclipboard(text) end',
     'end',
     '',
     'pcall(function()',
@@ -88,9 +126,6 @@ export default function handler(req, res) {
     '        env.setclipboard = BlockedClipboard',
     '        env.writeclipboard = BlockedClipboard',
     '        env.toclipboard = BlockedClipboard',
-    '    end',
-    '    if hookfunction and setclipboard then',
-    '        originalClipboard.setclipboard = hookfunction(setclipboard, BlockedClipboard)',
     '    end',
     'end)',
     '',
@@ -176,7 +211,7 @@ export default function handler(req, res) {
     'titleLabel.Size = UDim2.new(1, -120, 1, 0)',
     'titleLabel.Position = UDim2.new(0, 12, 0, 0)',
     'titleLabel.BackgroundTransparency = 1',
-    'titleLabel.Text = "SM-VAULT v5.0"',
+    'titleLabel.Text = "SM-VAULT v5.1"',
     'titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)',
     'titleLabel.TextSize = 20',
     'titleLabel.Font = Enum.Font.GothamBold',
@@ -226,7 +261,7 @@ export default function handler(req, res) {
     'protLabel.Size = UDim2.new(1, -20, 0, 22)',
     'protLabel.Position = UDim2.new(0, 10, 0, 120)',
     'protLabel.BackgroundTransparency = 1',
-    'protLabel.Text = "Protections: " .. protectionsPassed .. "/100 | Token System: ON"',
+    'protLabel.Text = "Protections: " .. protectionsPassed .. "/100 | Anti-Steal: ON"',
     'protLabel.TextColor3 = Color3.fromRGB(0, 200, 100)',
     'protLabel.TextSize = 13',
     'protLabel.Font = Enum.Font.GothamBold',
@@ -268,7 +303,7 @@ export default function handler(req, res) {
     'verLabel.Size = UDim2.new(1, -20, 0, 22)',
     'verLabel.Position = UDim2.new(0, 10, 0, 245)',
     'verLabel.BackgroundTransparency = 1',
-    'verLabel.Text = "Version: 5.0 | Rate Limit + Token"',
+    'verLabel.Text = "Version: 5.1 | Server-side Protection"',
     'verLabel.TextColor3 = Color3.fromRGB(80, 80, 80)',
     'verLabel.TextSize = 11',
     'verLabel.Font = Enum.Font.Gotham',
@@ -277,7 +312,7 @@ export default function handler(req, res) {
     'dbgCountLabel.Size = UDim2.new(1, -20, 0, 22)',
     'dbgCountLabel.Position = UDim2.new(0, 10, 0, 270)',
     'dbgCountLabel.BackgroundTransparency = 1',
-    'dbgCountLabel.Text = "Debug Logs: " .. #debugLogs .. " | Clipboard blocks: " .. clipboardBlocked',
+    'dbgCountLabel.Text = "Debug Logs: " .. #debugLogs .. " | Blocks: " .. clipboardBlocked',
     'dbgCountLabel.TextColor3 = Color3.fromRGB(60, 60, 60)',
     'dbgCountLabel.TextSize = 11',
     'dbgCountLabel.Font = Enum.Font.Gotham',
@@ -415,11 +450,11 @@ export default function handler(req, res) {
     'DebugLog("SUCCESS", "GUI created and visible")',
     '',
     'warn("==========================================")',
-    'warn("     SM-VAULT v5.0 LOADED")',
+    'warn("     SM-VAULT v5.1 LOADED")',
     'warn("     User: " .. player.Name)',
     'warn("     Executor: " .. executor)',
     'warn("     Protections: " .. protectionsPassed .. "/100")',
-    'warn("     Rate Limit + Token System: ACTIVE")',
+    'warn("     Server-side Anti-Steal: ACTIVE")',
     'warn("     Buy Source Code:")',
     'warn("     https://sm-vault-xyz.vercel.app/")',
     'warn("==========================================")',
