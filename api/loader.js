@@ -2,18 +2,18 @@ export default function handler(req, res) {
   const userAgent = req.headers['user-agent'] || '';
   
   // =============================================
-  // TROLL PAGE DLA PRZEGLADAREK
+  // TROLL PAGE FOR BROWSERS
   // =============================================
   if (!userAgent.toLowerCase().includes('roblox')) {
     const trollPage = `<!DOCTYPE html>
-<html lang="pl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>SM-VAULT</title>
+<title>Not Found</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: linear-gradient(135deg, #1a0033, #000000);
+    background: #0a0a0a;
     color: #fff;
     font-family: 'Arial Black', sans-serif;
     display: flex;
@@ -25,98 +25,92 @@ export default function handler(req, res) {
   }
   .emoji {
     font-size: 180px;
-    animation: bounce 1s infinite alternate;
     display: block;
     margin-bottom: 20px;
   }
   .big-text {
-    font-size: 90px;
+    font-size: 120px;
     font-weight: 900;
-    background: linear-gradient(90deg, #ff00ff, #00ffff, #ff00ff);
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: shine 2s linear infinite;
+    color: #ffffff;
     line-height: 1.1;
+    letter-spacing: -3px;
   }
-  .subtitle { font-size: 32px; color: #ff6699; margin-top: 20px; font-weight: bold; }
+  .subtitle {
+    font-size: 28px;
+    color: #888;
+    margin-top: 20px;
+    font-weight: bold;
+  }
   .link {
-    display: inline-block; margin-top: 30px; padding: 15px 40px;
-    background: linear-gradient(90deg, #ff00ff, #8000ff);
-    color: white; text-decoration: none; border-radius: 50px;
-    font-size: 18px; font-weight: bold; transition: transform 0.3s;
-    box-shadow: 0 0 30px rgba(255, 0, 255, 0.6);
+    display: inline-block;
+    margin-top: 40px;
+    padding: 15px 40px;
+    background: #ffffff;
+    color: #000;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: bold;
+    transition: transform 0.3s;
   }
-  .link:hover { transform: scale(1.1); }
-  @keyframes bounce { from{transform:translateY(0) rotate(-5deg)} to{transform:translateY(-30px) rotate(5deg)} }
-  @keyframes shine { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
+  .link:hover {
+    transform: scale(1.05);
+  }
 </style>
 </head>
 <body>
   <div>
     <div class="emoji">&#128526;</div>
-    <div class="big-text">NICE TRY BUDDY!</div>
-    <div class="subtitle">Nie ukradniesz mojego kodu XD</div>
+    <div class="big-text">Not Found</div>
+    <div class="subtitle">You cannot access this resource</div>
     <a href="https://sm-vault-xyz.vercel.app/" class="link">Buy Source Code</a>
   </div>
 </body>
 </html>`;
+
     res.setHeader('Content-Type', 'text/html');
     res.status(200).send(trollPage);
     return;
   }
 
   // =============================================
-  // KOD LUA DLA ROBLOXA
+  // LUA SCRIPT FOR ROBLOX
   // =============================================
   const luaCode = `
 -- =============================================
--- SM-VAULT PROTECTED SCRIPT v3.0 with DEBUG
+-- SM-VAULT PROTECTED SCRIPT v3.0
 -- Buy Source Code: https://sm-vault-xyz.vercel.app/
 -- =============================================
 
--- ============ SYSTEM DEBUG ============
-local DEBUG_MODE = true -- ustaw na false aby wylaczyc debug
+local DEBUG_MODE = true
 local debugLogs = {}
 
-local function DebugLog(type, message, solution)
-    local logEntry = {
+local function DebugLog(logType, message, solution)
+    local entry = {
         time = os.date("%H:%M:%S"),
-        type = type,
+        type = logType,
         message = tostring(message),
-        solution = solution or "Brak rozwiazania"
+        solution = solution or ""
     }
-    table.insert(debugLogs, logEntry)
-    
+    table.insert(debugLogs, entry)
     if DEBUG_MODE then
-        local color = {
-            INFO = "\\27[36m",
-            SUCCESS = "\\27[32m",
-            WARNING = "\\27[33m",
-            ERROR = "\\27[31m"
-        }
-        warn("[SM-VAULT DEBUG] [" .. type .. "] " .. tostring(message))
-        if solution and solution ~= "Brak rozwiazania" then
-            warn("[SM-VAULT DEBUG] [FIX] " .. solution)
-        end
+        warn("[SM-VAULT] [" .. logType .. "] " .. tostring(message))
+        if solution ~= "" then warn("[SM-VAULT] [FIX] " .. solution) end
     end
 end
 
-DebugLog("INFO", "Rozpoczynam ladowanie skryptu SM-VAULT v3.0")
+DebugLog("INFO", "Loading SM-VAULT v3.0")
 
--- ============ SPRAWDZENIE ENVIRONMENT ============
 local success, result = pcall(function()
-    local Players = game:GetService("Players")
-    local TweenService = game:GetService("TweenService")
-    local UserInputService = game:GetService("UserInputService")
-    
-    DebugLog("SUCCESS", "Services zaladowane pomyslnie")
-    return {Players = Players, TweenService = TweenService, UserInputService = UserInputService}
+    return {
+        Players = game:GetService("Players"),
+        TweenService = game:GetService("TweenService"),
+        UserInputService = game:GetService("UserInputService")
+    }
 end)
 
 if not success then
-    DebugLog("ERROR", "Nie mozna zaladowac Services: " .. tostring(result), 
-        "Sprawdz czy jestes w grze Roblox i czy executor obsluguje game:GetService()")
+    DebugLog("ERROR", "Failed to load Services: " .. tostring(result), "Run in Roblox game")
     return
 end
 
@@ -124,81 +118,47 @@ local Players = result.Players
 local TweenService = result.TweenService
 local UserInputService = result.UserInputService
 
--- ============ CHECK: gra zaladowana ============
+DebugLog("SUCCESS", "Services loaded")
+
 if not game:IsLoaded() then
-    DebugLog("INFO", "Gra nie zaladowana, czekam...")
     game.Loaded:Wait()
-    DebugLog("SUCCESS", "Gra zaladowana")
 end
 
--- ============ CHECK: anti-dump ============
-if string.dump then
-    DebugLog("ERROR", "Wykryto string.dump - proba dumpu kodu!", 
-        "Uzyj legalnego executora bez modyfikacji")
-    return
-end
-
-if getscriptbytecode then
-    DebugLog("ERROR", "Wykryto getscriptbytecode - proba dumpu!", 
-        "Uzyj legalnego executora bez modyfikacji")
-    return
-end
-
-DebugLog("SUCCESS", "Anti-dump: OK")
-
--- ============ CHECK: Player ============
 local player = Players.LocalPlayer
 if not player then
-    DebugLog("ERROR", "LocalPlayer nie istnieje!", 
-        "Poczekaj az sie zaladujesz do gry i uruchom skrypt ponownie")
+    DebugLog("ERROR", "LocalPlayer not found", "Wait until you spawn in the game")
     return
 end
 
-DebugLog("SUCCESS", "LocalPlayer: " .. player.Name .. " (ID: " .. player.UserId .. ")")
+DebugLog("SUCCESS", "Player: " .. player.Name)
 
--- ============ CHECK: Executor ============
 local executor = "Unknown"
 if identifyexecutor then
     executor = identifyexecutor()
-    DebugLog("INFO", "Executor: " .. executor)
-else
-    DebugLog("WARNING", "identifyexecutor() nie dostepny", 
-        "To nie problem, kontynuuje...")
 end
+DebugLog("INFO", "Executor: " .. executor)
 
--- ============ CHECK: gethui / CoreGui ============
 local parent
 if gethui then
     parent = gethui()
-    DebugLog("SUCCESS", "Uzywam gethui() - najlepsza opcja")
+    DebugLog("SUCCESS", "Using gethui()")
 else
-    local success2, coreGui = pcall(function() return game:GetService("CoreGui") end)
-    if success2 and coreGui then
-        parent = coreGui
-        DebugLog("WARNING", "gethui() niedostepny, uzywam CoreGui", 
-            "Skrypt zadziala, ale rozwaz uzycie lepszego executora")
+    local ok, cg = pcall(function() return game:GetService("CoreGui") end)
+    if ok then
+        parent = cg
+        DebugLog("INFO", "Using CoreGui")
     else
         parent = player:WaitForChild("PlayerGui")
-        DebugLog("WARNING", "CoreGui niedostepny, uzywam PlayerGui", 
-            "GUI zniknie po respawnie - to normalne dla tego executora")
+        DebugLog("WARNING", "Using PlayerGui", "GUI will disappear after respawn")
     end
 end
 
--- ============ USUN STARE GUI ============
-local removed = 0
 pcall(function()
     for _, v in pairs(parent:GetChildren()) do
-        if v.Name == "SMVaultGUI" then 
-            v:Destroy() 
-            removed = removed + 1
-        end
+        if v.Name == "SMVaultGUI" then v:Destroy() end
     end
 end)
-if removed > 0 then
-    DebugLog("INFO", "Usunieto stare GUI (" .. removed .. " szt.)")
-end
 
--- ============ TWORZENIE GUI ============
 local success3, err = pcall(function()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SMVaultGUI"
@@ -208,12 +168,11 @@ local success3, err = pcall(function()
     screenGui.Parent = parent
 
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 420, 0, 380)
-    mainFrame.Position = UDim2.new(0.5, -210, 0.5, -190)
+    mainFrame.Size = UDim2.new(0, 420, 0, 340)
+    mainFrame.Position = UDim2.new(0.5, -210, 0.5, -170)
     mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
     mainFrame.BorderSizePixel = 0
     mainFrame.Parent = screenGui
-
     Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 14)
     local mainStroke = Instance.new("UIStroke", mainFrame)
     mainStroke.Color = Color3.fromRGB(128, 0, 255)
@@ -241,7 +200,6 @@ local success3, err = pcall(function()
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- Debug button
     local debugBtn = Instance.new("TextButton", titleBar)
     debugBtn.Size = UDim2.new(0, 60, 0, 32)
     debugBtn.Position = UDim2.new(1, -105, 0, 7)
@@ -264,7 +222,6 @@ local success3, err = pcall(function()
     closeBtn.BorderSizePixel = 0
     Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
 
-    -- ============ MAIN CONTENT ============
     local statusLabel = Instance.new("TextLabel", mainFrame)
     statusLabel.Size = UDim2.new(1, -20, 0, 40)
     statusLabel.Position = UDim2.new(0, 10, 0, 60)
@@ -283,11 +240,11 @@ local success3, err = pcall(function()
     infoLabel.TextSize = 14
     infoLabel.Font = Enum.Font.GothamBold
 
-    local separator = Instance.new("Frame", mainFrame)
-    separator.Size = UDim2.new(0.8, 0, 0, 2)
-    separator.Position = UDim2.new(0.1, 0, 0, 145)
-    separator.BackgroundColor3 = Color3.fromRGB(128, 0, 255)
-    separator.BorderSizePixel = 0
+    local sep = Instance.new("Frame", mainFrame)
+    sep.Size = UDim2.new(0.8, 0, 0, 2)
+    sep.Position = UDim2.new(0.1, 0, 0, 145)
+    sep.BackgroundColor3 = Color3.fromRGB(128, 0, 255)
+    sep.BorderSizePixel = 0
 
     local buyTitle = Instance.new("TextLabel", mainFrame)
     buyTitle.Size = UDim2.new(1, -20, 0, 25)
@@ -325,17 +282,7 @@ local success3, err = pcall(function()
     protStatus.TextSize = 12
     protStatus.Font = Enum.Font.GothamBold
 
-    -- Debug counter
-    local debugCounter = Instance.new("TextLabel", mainFrame)
-    debugCounter.Size = UDim2.new(1, -20, 0, 25)
-    debugCounter.Position = UDim2.new(0, 10, 0, 275)
-    debugCounter.BackgroundTransparency = 1
-    debugCounter.Text = "Debug Logs: " .. #debugLogs
-    debugCounter.TextColor3 = Color3.fromRGB(150, 150, 150)
-    debugCounter.TextSize = 12
-    debugCounter.Font = Enum.Font.Gotham
-
-    -- ============ DEBUG PANEL (chowany) ============
+    -- DEBUG PANEL
     local debugFrame = Instance.new("Frame")
     debugFrame.Size = UDim2.new(0, 600, 0, 400)
     debugFrame.Position = UDim2.new(0.5, -300, 0.5, -200)
@@ -344,15 +291,11 @@ local success3, err = pcall(function()
     debugFrame.Visible = false
     debugFrame.Parent = screenGui
     Instance.new("UICorner", debugFrame).CornerRadius = UDim.new(0, 12)
-    
-    local debugStroke = Instance.new("UIStroke", debugFrame)
-    debugStroke.Color = Color3.fromRGB(50, 150, 255)
-    debugStroke.Thickness = 2
 
     local debugTitle = Instance.new("TextLabel", debugFrame)
     debugTitle.Size = UDim2.new(1, 0, 0, 40)
     debugTitle.BackgroundColor3 = Color3.fromRGB(50, 150, 255)
-    debugTitle.Text = "DEBUG CONSOLE - SM-VAULT"
+    debugTitle.Text = "DEBUG CONSOLE"
     debugTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     debugTitle.TextSize = 18
     debugTitle.Font = Enum.Font.GothamBold
@@ -370,91 +313,86 @@ local success3, err = pcall(function()
     debugClose.BorderSizePixel = 0
     Instance.new("UICorner", debugClose).CornerRadius = UDim.new(0, 6)
 
-    local scrollFrame = Instance.new("ScrollingFrame", debugFrame)
-    scrollFrame.Size = UDim2.new(1, -20, 1, -50)
-    scrollFrame.Position = UDim2.new(0, 10, 0, 45)
-    scrollFrame.BackgroundColor3 = Color3.fromRGB(5, 5, 10)
-    scrollFrame.BorderSizePixel = 0
-    scrollFrame.ScrollBarThickness = 6
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    Instance.new("UICorner", scrollFrame).CornerRadius = UDim.new(0, 8)
+    local scroll = Instance.new("ScrollingFrame", debugFrame)
+    scroll.Size = UDim2.new(1, -20, 1, -50)
+    scroll.Position = UDim2.new(0, 10, 0, 45)
+    scroll.BackgroundColor3 = Color3.fromRGB(5, 5, 10)
+    scroll.BorderSizePixel = 0
+    scroll.ScrollBarThickness = 6
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    Instance.new("UICorner", scroll).CornerRadius = UDim.new(0, 8)
 
-    local layout = Instance.new("UIListLayout", scrollFrame)
+    local layout = Instance.new("UIListLayout", scroll)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Padding = UDim.new(0, 5)
 
-    local padding = Instance.new("UIPadding", scrollFrame)
-    padding.PaddingLeft = UDim.new(0, 10)
-    padding.PaddingRight = UDim.new(0, 10)
-    padding.PaddingTop = UDim.new(0, 10)
+    local pad = Instance.new("UIPadding", scroll)
+    pad.PaddingLeft = UDim.new(0, 10)
+    pad.PaddingRight = UDim.new(0, 10)
+    pad.PaddingTop = UDim.new(0, 10)
 
-    -- Wypelnij logami
     local function RefreshLogs()
-        for _, child in pairs(scrollFrame:GetChildren()) do
-            if child:IsA("Frame") then child:Destroy() end
+        for _, c in pairs(scroll:GetChildren()) do
+            if c:IsA("Frame") then c:Destroy() end
         end
-        
+        local colors = {
+            INFO = Color3.fromRGB(100, 200, 255),
+            SUCCESS = Color3.fromRGB(100, 255, 100),
+            WARNING = Color3.fromRGB(255, 200, 50),
+            ERROR = Color3.fromRGB(255, 80, 80)
+        }
         for i, log in ipairs(debugLogs) do
-            local logFrame = Instance.new("Frame")
-            logFrame.Size = UDim2.new(1, -20, 0, 0)
-            logFrame.AutomaticSize = Enum.AutomaticSize.Y
-            logFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-            logFrame.BorderSizePixel = 0
-            logFrame.LayoutOrder = i
-            logFrame.Parent = scrollFrame
-            Instance.new("UICorner", logFrame).CornerRadius = UDim.new(0, 6)
-            
-            local logPadding = Instance.new("UIPadding", logFrame)
-            logPadding.PaddingLeft = UDim.new(0, 10)
-            logPadding.PaddingRight = UDim.new(0, 10)
-            logPadding.PaddingTop = UDim.new(0, 5)
-            logPadding.PaddingBottom = UDim.new(0, 5)
-            
-            local typeColors = {
-                INFO = Color3.fromRGB(100, 200, 255),
-                SUCCESS = Color3.fromRGB(100, 255, 100),
-                WARNING = Color3.fromRGB(255, 200, 50),
-                ERROR = Color3.fromRGB(255, 80, 80)
-            }
-            
-            local logText = Instance.new("TextLabel", logFrame)
-            logText.Size = UDim2.new(1, 0, 0, 0)
-            logText.AutomaticSize = Enum.AutomaticSize.Y
-            logText.BackgroundTransparency = 1
-            logText.Text = "[" .. log.time .. "] [" .. log.type .. "] " .. log.message
-            logText.TextColor3 = typeColors[log.type] or Color3.fromRGB(200, 200, 200)
-            logText.TextSize = 13
-            logText.Font = Enum.Font.Code
-            logText.TextXAlignment = Enum.TextXAlignment.Left
-            logText.TextWrapped = true
-            
-            if log.solution and log.solution ~= "Brak rozwiazania" then
-                local solText = Instance.new("TextLabel", logFrame)
-                solText.Size = UDim2.new(1, 0, 0, 0)
-                solText.AutomaticSize = Enum.AutomaticSize.Y
-                solText.BackgroundTransparency = 1
-                solText.Text = "   FIX: " .. log.solution
-                solText.TextColor3 = Color3.fromRGB(150, 255, 150)
-                solText.TextSize = 12
-                solText.Font = Enum.Font.Code
-                solText.TextXAlignment = Enum.TextXAlignment.Left
-                solText.TextWrapped = true
+            local lf = Instance.new("Frame")
+            lf.Size = UDim2.new(1, -20, 0, 0)
+            lf.AutomaticSize = Enum.AutomaticSize.Y
+            lf.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+            lf.BorderSizePixel = 0
+            lf.LayoutOrder = i
+            lf.Parent = scroll
+            Instance.new("UICorner", lf).CornerRadius = UDim.new(0, 6)
+
+            local lp = Instance.new("UIPadding", lf)
+            lp.PaddingLeft = UDim.new(0, 10)
+            lp.PaddingRight = UDim.new(0, 10)
+            lp.PaddingTop = UDim.new(0, 5)
+            lp.PaddingBottom = UDim.new(0, 5)
+
+            local lt = Instance.new("TextLabel", lf)
+            lt.Size = UDim2.new(1, 0, 0, 0)
+            lt.AutomaticSize = Enum.AutomaticSize.Y
+            lt.BackgroundTransparency = 1
+            lt.Text = "[" .. log.time .. "] [" .. log.type .. "] " .. log.message
+            lt.TextColor3 = colors[log.type] or Color3.fromRGB(200, 200, 200)
+            lt.TextSize = 13
+            lt.Font = Enum.Font.Code
+            lt.TextXAlignment = Enum.TextXAlignment.Left
+            lt.TextWrapped = true
+
+            if log.solution and log.solution ~= "" then
+                local st = Instance.new("TextLabel", lf)
+                st.Size = UDim2.new(1, 0, 0, 0)
+                st.AutomaticSize = Enum.AutomaticSize.Y
+                st.BackgroundTransparency = 1
+                st.Text = "   FIX: " .. log.solution
+                st.TextColor3 = Color3.fromRGB(150, 255, 150)
+                st.TextSize = 12
+                st.Font = Enum.Font.Code
+                st.TextXAlignment = Enum.TextXAlignment.Left
+                st.TextWrapped = true
             end
         end
     end
 
-    -- ============ ANIMACJE ============
     spawn(function()
         while mainFrame and mainFrame.Parent do
-            TweenService:Create(mainStroke, TweenInfo.new(1.5, Enum.EasingStyle.Sine), {Color = Color3.fromRGB(0, 150, 255)}):Play()
+            TweenService:Create(mainStroke, TweenInfo.new(1.5), {Color = Color3.fromRGB(0, 150, 255)}):Play()
             wait(1.5)
-            TweenService:Create(mainStroke, TweenInfo.new(1.5, Enum.EasingStyle.Sine), {Color = Color3.fromRGB(128, 0, 255)}):Play()
+            TweenService:Create(mainStroke, TweenInfo.new(1.5), {Color = Color3.fromRGB(128, 0, 255)}):Play()
             wait(1.5)
         end
     end)
 
-    -- ============ EVENTS ============
     debugBtn.MouseButton1Click:Connect(function()
         debugFrame.Visible = not debugFrame.Visible
         if debugFrame.Visible then RefreshLogs() end
@@ -468,7 +406,6 @@ local success3, err = pcall(function()
         screenGui:Destroy()
     end)
 
-    -- Dragging
     local dragging = false
     local dragStart, startPos
     titleBar.InputBegan:Connect(function(input)
@@ -490,36 +427,27 @@ local success3, err = pcall(function()
         end
     end)
 
-    -- ============ ERROR CATCHER (globalny) ============
-    game:GetService("ScriptContext").Error:Connect(function(message, stackTrace, scriptContext)
-        DebugLog("ERROR", "Roblox Error: " .. tostring(message), 
-            "Sprawdz stackTrace w F9. Jesli to blad gry (nie skryptu), zignoruj.")
-        if debugFrame.Visible then RefreshLogs() end
-        debugCounter.Text = "Debug Logs: " .. #debugLogs
+    pcall(function()
+        game:GetService("ScriptContext").Error:Connect(function(msg, st, sc)
+            DebugLog("ERROR", "Roblox: " .. tostring(msg), "Check stackTrace in F9")
+        end)
     end)
 
-    DebugLog("SUCCESS", "GUI utworzone pomyslnie w " .. parent:GetFullName())
+    DebugLog("SUCCESS", "GUI created in " .. parent:GetFullName())
 end)
 
 if not success3 then
-    warn("[SM-VAULT] KRYTYCZNY BLAD GUI: " .. tostring(err))
-    DebugLog("ERROR", "Nie udalo sie stworzyc GUI: " .. tostring(err), 
-        "Sprawdz czy executor obsluguje Instance.new i UDim2.new")
+    DebugLog("ERROR", "Failed to create GUI: " .. tostring(err), "Check executor permissions")
 end
 
--- ============ KONSOLA ============
 warn("==========================================")
 warn("     SM-VAULT v3.0 LOADED")
 warn("     User: " .. player.Name)
 warn("     Executor: " .. executor)
-warn("     Debug Mode: " .. tostring(DEBUG_MODE))
-warn("     Buy Source Code:")
-warn("     https://sm-vault-xyz.vercel.app/")
 warn("==========================================")
 
-print("dziala skrypt wiec by dzialalo")
-
-DebugLog("SUCCESS", "Skrypt zaladowany bez bledow!")
+print("script is working so it would work")
+DebugLog("SUCCESS", "Script loaded without errors!")
 `;
 
   res.setHeader('Content-Type', 'text/plain');
