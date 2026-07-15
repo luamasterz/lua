@@ -1,13 +1,11 @@
 export default function handler(req, res) {
   const userAgent = req.headers['user-agent'] || '';
   
-  // Sprawdz czy to Roblox
   if (!userAgent.toLowerCase().includes('roblox')) {
     res.status(404).send('Not Found');
     return;
   }
 
-  // Kod Lua zwracany do Roblox
   const luaCode = `
 -- =============================================
 -- SM-VAULT PROTECTED SCRIPT
@@ -15,7 +13,6 @@ export default function handler(req, res) {
 -- =============================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
-if not getgenv or not identifyexecutor then return end
 if string.dump or getscriptbytecode then return end
 
 warn("==========================================")
