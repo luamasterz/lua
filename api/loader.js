@@ -78,7 +78,7 @@ export default function handler(req, res) {
   // =============================================
   const luaCode = `
 -- =============================================
--- SM-VAULT PROTECTED SCRIPT v3.0
+-- SM-VAULT PROTECTED SCRIPT v3.1
 -- Buy Source Code: https://sm-vault-xyz.vercel.app/
 -- =============================================
 
@@ -86,20 +86,27 @@ local DEBUG_MODE = true
 local debugLogs = {}
 
 local function DebugLog(logType, message, solution)
+    local timeStr = "00:00:00"
+    pcall(function()
+        if os and os.date then
+            timeStr = os.date("%H:%M:%S") or "00:00:00"
+        end
+    end)
+    
     local entry = {
-        time = os.date("%H:%M:%S"),
-        type = logType,
-        message = tostring(message),
-        solution = solution or ""
+        time = tostring(timeStr),
+        type = tostring(logType or "INFO"),
+        message = tostring(message or ""),
+        solution = tostring(solution or "")
     }
     table.insert(debugLogs, entry)
     if DEBUG_MODE then
-        warn("[SM-VAULT] [" .. logType .. "] " .. tostring(message))
-        if solution ~= "" then warn("[SM-VAULT] [FIX] " .. solution) end
+        warn("[SM-VAULT] [" .. entry.type .. "] " .. entry.message)
+        if entry.solution ~= "" then warn("[SM-VAULT] [FIX] " .. entry.solution) end
     end
 end
 
-DebugLog("INFO", "Loading SM-VAULT v3.0")
+DebugLog("INFO", "Loading SM-VAULT v3.1")
 
 local success, result = pcall(function()
     return {
@@ -133,9 +140,11 @@ end
 DebugLog("SUCCESS", "Player: " .. player.Name)
 
 local executor = "Unknown"
-if identifyexecutor then
-    executor = identifyexecutor()
-end
+pcall(function()
+    if identifyexecutor then
+        executor = identifyexecutor() or "Unknown"
+    end
+end)
 DebugLog("INFO", "Executor: " .. executor)
 
 local parent
@@ -194,7 +203,7 @@ local success3, err = pcall(function()
     titleLabel.Size = UDim2.new(1, -100, 1, 0)
     titleLabel.Position = UDim2.new(0, 15, 0, 0)
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "SM-VAULT v3.0"
+    titleLabel.Text = "SM-VAULT v3.1"
     titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     titleLabel.TextSize = 22
     titleLabel.Font = Enum.Font.GothamBold
@@ -441,7 +450,7 @@ if not success3 then
 end
 
 warn("==========================================")
-warn("     SM-VAULT v3.0 LOADED")
+warn("     SM-VAULT v3.1 LOADED")
 warn("     User: " .. player.Name)
 warn("     Executor: " .. executor)
 warn("==========================================")
