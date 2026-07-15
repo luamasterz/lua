@@ -1,85 +1,196 @@
+const activeTokens = new Map();
+const usedTokens = new Set();
 const ipRequests = new Map();
-const ipFirstSeen = new Map();
+const hwidBans = new Set();
+
+const SECRET_KEY = "SM_VAULT_2024_XYZ_" + "SECRET_ABC123";
+
+function cleanup() {
+  const now = Date.now();
+  for (const [token, data] of activeTokens.entries()) {
+    if (now - data.created > 30000) activeTokens.delete(token);
+  }
+  if (usedTokens.size > 5000) usedTokens.clear();
+  if (ipRequests.size > 1000) {
+    for (const [ip, times] of ipRequests.entries()) {
+      const recent = times.filter(t => now - t < 60000);
+      if (recent.length === 0) ipRequests.delete(ip);
+      else ipRequests.set(ip, recent);
+    }
+  }
+}
 
 export default function handler(req, res) {
+  cleanup();
+  
   const userAgent = req.headers['user-agent'] || '';
-  const ip = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown';
+  const ip = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown';
   const now = Date.now();
+  const method = req.method;
+  const action = req.query.action || req.body?.action || '';
 
-  if (!userAgent.toLowerCase().includes('roblox')) {
-    const trollPage = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Not Found</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0a0a0a;color:#fff;font-family:'Arial Black',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;overflow:hidden;text-align:center}.emoji{font-size:180px;display:block;margin-bottom:20px}.big-text{font-size:120px;font-weight:900;color:#fff;line-height:1.1;letter-spacing:-3px}.subtitle{font-size:28px;color:#888;margin-top:20px;font-weight:bold}.link{display:inline-block;margin-top:40px;padding:15px 40px;background:#fff;color:#000;text-decoration:none;border-radius:8px;font-size:18px;font-weight:bold;transition:transform .3s}.link:hover{transform:scale(1.05)}</style></head><body><div><div class="emoji">&#128526;</div><div class="big-text">Not Found</div><div class="subtitle">You cannot access this resource</div><a href="https://sm-vault-xyz.vercel.app/" class="link">Buy Source Code</a></div></body></html>`;
+  if (hwidBans.has(ip)) {
+    res.status(403).send('-- Banned');
+    return;
+  }
+
+  if (method === 'GET' && !action && !userAgent.toLowerCase().includes('roblox')) {
+    const trollPage = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Not Found</title><style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0a0a0a;color:#fff;font-family:'Arial Black',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;overflow:hidden;text-align:center}.emoji{font-size:180px;display:block;margin-bottom:20px}.big-text{font-size:120px;font-weight:900;color:#fff;line-height:1.1;letter-spacing:-3px}.subtitle{font-size:28px;color:#888;margin-top:20px;font-weight:bold}.link{display:inline-block;margin-top:40px;padding:15px 40px;background:#fff;color:#000;text-decoration:none;border-radius:8px;font-size:18px;font-weight:bold}</style></head><body><div><div class="emoji">&#128526;</div><div class="big-text">Not Found</div><div class="subtitle">You cannot access this resource</div><a href="https://sm-vault-xyz.vercel.app/" class="link">Buy Source Code</a></div></body></html>`;
     res.setHeader('Content-Type', 'text/html');
     res.status(200).send(trollPage);
     return;
   }
 
-  const lastRequests = ipRequests.get(ip) || [];
-  const recentRequests = lastRequests.filter(t => now - t < 5000);
-  
-  const isSuspicious = recentRequests.length >= 1;
-  
-  recentRequests.push(now);
-  ipRequests.set(ip, recentRequests);
-
-  if (ipRequests.size > 500) {
-    const oldIps = [];
-    for (const [key, val] of ipRequests.entries()) {
-      if (val.every(t => now - t > 60000)) oldIps.push(key);
-    }
-    oldIps.forEach(k => ipRequests.delete(k));
+  const times = ipRequests.get(ip) || [];
+  const recent = times.filter(t => now - t < 5000);
+  if (recent.length >= 3) {
+    hwidBans.add(ip);
+    setTimeout(() => hwidBans.delete(ip), 300000);
+    res.status(429).send('-- Rate limit. Banned for 5 minutes.');
+    return;
   }
+  recent.push(now);
+  ipRequests.set(ip, recent);
 
-  if (isSuspicious) {
-    const fakeLua = [
-      'local Players = game:GetService("Players")',
-      'local player = Players.LocalPlayer',
-      'local parent = (gethui and gethui()) or game:GetService("CoreGui")',
+  if (method === 'GET' && !action) {
+    const token = Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+    activeTokens.set(token, { created: now, ip: ip, used: false });
+    
+    const loader = [
+      'local Token = "' + token + '"',
+      'local Endpoint = "https://lua-drab.vercel.app/api/loader"',
+      'local hwid = "unknown"',
       'pcall(function()',
-      '    for _, v in pairs(parent:GetChildren()) do',
-      '        if v.Name == "STOLEN_WARNING" then v:Destroy() end',
+      '    if gethwid then hwid = gethwid()',
+      '    elseif game and game.GetService then',
+      '        hwid = tostring(game:GetService("RbxAnalyticsService"):GetClientId())',
       '    end',
       'end)',
-      'local gui = Instance.new("ScreenGui")',
-      'gui.Name = "STOLEN_WARNING"',
-      'gui.IgnoreGuiInset = true',
-      'gui.DisplayOrder = 999999',
-      'gui.ResetOnSpawn = false',
-      'gui.Parent = parent',
-      'local frame = Instance.new("Frame", gui)',
-      'frame.Size = UDim2.new(1, 0, 1, 0)',
-      'frame.BackgroundColor3 = Color3.fromRGB(200, 0, 0)',
-      'frame.BorderSizePixel = 0',
-      'local text = Instance.new("TextLabel", frame)',
-      'text.Size = UDim2.new(1, 0, 0.5, 0)',
-      'text.Position = UDim2.new(0, 0, 0.25, 0)',
-      'text.BackgroundTransparency = 1',
-      'text.Text = "STOLEN SCRIPT DETECTED"',
-      'text.TextColor3 = Color3.fromRGB(255, 255, 255)',
-      'text.TextScaled = true',
-      'text.Font = Enum.Font.GothamBold',
-      'local sub = Instance.new("TextLabel", frame)',
-      'sub.Size = UDim2.new(1, 0, 0.1, 0)',
-      'sub.Position = UDim2.new(0, 0, 0.65, 0)',
-      'sub.BackgroundTransparency = 1',
-      'sub.Text = "Buy the real one at https://sm-vault-xyz.vercel.app/"',
-      'sub.TextColor3 = Color3.fromRGB(255, 255, 255)',
-      'sub.TextScaled = true',
-      'sub.Font = Enum.Font.Gotham',
-      'warn("[SM-VAULT] STOLEN SCRIPT DETECTED - Buy at https://sm-vault-xyz.vercel.app/")',
-      'warn("[SM-VAULT] Rate limit triggered - suspicious behavior")',
-      'for i = 1, 20 do print("STOLEN SCRIPT - BUY AT https://sm-vault-xyz.vercel.app/") end'
+      'local httpRequest = request or http_request or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request)',
+      'if not httpRequest then warn("[SM-VAULT] HTTP request not supported") return end',
+      'local response = httpRequest({',
+      '    Url = Endpoint .. "?action=verify",',
+      '    Method = "POST",',
+      '    Headers = { ["Content-Type"] = "application/json", ["X-Token"] = Token, ["X-HWID"] = hwid },',
+      '    Body = game:GetService("HttpService"):JSONEncode({ token = Token, hwid = hwid })',
+      '})',
+      'if not response or response.StatusCode ~= 200 then',
+      '    warn("[SM-VAULT] Verification failed: " .. tostring(response and response.StatusCode))',
+      '    return',
+      'end',
+      'local key = response.Body',
+      'local response2 = httpRequest({',
+      '    Url = Endpoint .. "?action=script",',
+      '    Method = "POST",',
+      '    Headers = { ["Content-Type"] = "application/json", ["X-Key"] = key, ["X-HWID"] = hwid },',
+      '    Body = game:GetService("HttpService"):JSONEncode({ key = key, hwid = hwid })',
+      '})',
+      'if not response2 or response2.StatusCode ~= 200 then',
+      '    warn("[SM-VAULT] Script fetch failed: " .. tostring(response2 and response2.StatusCode))',
+      '    return',
+      'end',
+      'local fn = loadstring(response2.Body)',
+      'if fn then fn() else warn("[SM-VAULT] Failed to compile script") end'
     ].join('\n');
     
     res.setHeader('Content-Type', 'text/plain');
     res.setHeader('Cache-Control', 'no-store');
-    res.status(200).send(fakeLua);
+    res.status(200).send(loader);
     return;
   }
 
-  const requestToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+  if (method === 'POST' && action === 'verify') {
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch(e) { body = {}; }
+    }
+    body = body || {};
+    
+    const token = req.headers['x-token'] || body.token;
+    const hwid = req.headers['x-hwid'] || body.hwid || 'unknown';
+    
+    if (!token || !activeTokens.has(token)) {
+      res.status(403).send('-- Invalid token');
+      return;
+    }
+    
+    const tokenData = activeTokens.get(token);
+    if (tokenData.used) {
+      hwidBans.add(ip);
+      setTimeout(() => hwidBans.delete(ip), 600000);
+      res.status(403).send('-- Token already used');
+      return;
+    }
+    
+    if (now - tokenData.created > 30000) {
+      activeTokens.delete(token);
+      res.status(403).send('-- Token expired');
+      return;
+    }
+    
+    tokenData.used = true;
+    tokenData.hwid = hwid;
+    
+    const oneTimeKey = Math.random().toString(36).substring(2, 20) + '_' + Date.now();
+    activeTokens.set(oneTimeKey, { created: now, ip: ip, hwid: hwid, isKey: true, used: false });
+    activeTokens.delete(token);
+    
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).send(oneTimeKey);
+    return;
+  }
 
-  const lua = [
-    'local REQUEST_TOKEN = "' + requestToken + '"',
+  if (method === 'POST' && action === 'script') {
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch(e) { body = {}; }
+    }
+    body = body || {};
+    
+    const key = req.headers['x-key'] || body.key;
+    const hwid = req.headers['x-hwid'] || body.hwid || 'unknown';
+    
+    if (!key || !activeTokens.has(key)) {
+      res.status(403).send('-- Invalid key');
+      return;
+    }
+    
+    const keyData = activeTokens.get(key);
+    if (!keyData.isKey || keyData.used) {
+      hwidBans.add(ip);
+      setTimeout(() => hwidBans.delete(ip), 600000);
+      res.status(403).send('-- Key already used');
+      return;
+    }
+    
+    if (keyData.hwid !== hwid) {
+      res.status(403).send('-- HWID mismatch');
+      return;
+    }
+    
+    if (now - keyData.created > 15000) {
+      activeTokens.delete(key);
+      res.status(403).send('-- Key expired');
+      return;
+    }
+    
+    keyData.used = true;
+    usedTokens.add(key);
+    setTimeout(() => activeTokens.delete(key), 5000);
+    
+    const script = generateScript();
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).send(script);
+    return;
+  }
+
+  res.status(404).send('-- Not found');
+}
+
+function generateScript() {
+  return [
     'local DEBUG_MODE = true',
     'local debugLogs = {}',
     '',
@@ -94,23 +205,15 @@ export default function handler(req, res) {
     '    end',
     'end',
     '',
-    'DebugLog("INFO", "Loading SM-VAULT v5.1")',
-    '',
-    'if not _G.SM_VAULT_TOKENS then _G.SM_VAULT_TOKENS = {} end',
-    'if _G.SM_VAULT_TOKENS[REQUEST_TOKEN] then',
-    '    DebugLog("ERROR", "Duplicate token detected", "Clipboard theft prevented")',
-    '    return',
-    'end',
-    '_G.SM_VAULT_TOKENS[REQUEST_TOKEN] = true',
+    'DebugLog("SUCCESS", "Authenticated via POST with HWID")',
     '',
     'local originalClipboard = {}',
     'local clipboardBlocked = 0',
-    '',
     'local function BlockedClipboard(text)',
     '    if type(text) == "string" then',
-    '        if text:find("lua%-drab") or text:find("HttpGet") or text:find("loadstring") or text:find("sm%-vault") or #text > 500 then',
+    '        if text:find("lua%-drab") or text:find("HttpGet") or text:find("loadstring") or text:find("sm%-vault") or #text > 300 then',
     '            clipboardBlocked = clipboardBlocked + 1',
-    '            DebugLog("WARNING", "Clipboard BLOCKED attempt #" .. clipboardBlocked, "Anti-theft")',
+    '            DebugLog("WARNING", "Clipboard BLOCKED #" .. clipboardBlocked, "Anti-theft")',
     '            return nil',
     '        end',
     '    end',
@@ -132,22 +235,22 @@ export default function handler(req, res) {
     'DebugLog("SUCCESS", "Clipboard protection installed")',
     '',
     'local protectionsPassed = 0',
-    'local function Protect(id, name, checkFunc)',
+    'local function Protect(id, checkFunc)',
     '    local ok, result = pcall(checkFunc)',
     '    if ok and result then protectionsPassed = protectionsPassed + 1 end',
     'end',
     '',
-    'Protect(1, "Game", function() return game ~= nil end)',
-    'Protect(2, "Workspace", function() return workspace ~= nil end)',
-    'Protect(3, "Players", function() return game:GetService("Players") ~= nil end)',
-    'Protect(4, "LocalPlayer", function() return game.Players.LocalPlayer ~= nil end)',
-    'Protect(5, "HttpService", function() return game:GetService("HttpService") ~= nil end)',
-    'Protect(6, "TweenService", function() return game:GetService("TweenService") ~= nil end)',
-    'Protect(7, "UserInputService", function() return game:GetService("UserInputService") ~= nil end)',
-    'Protect(8, "CoreGui", function() return game:GetService("CoreGui") ~= nil end)',
-    'Protect(9, "getgenv", function() return getgenv ~= nil end)',
-    'Protect(10, "hookfunction", function() return hookfunction ~= nil end)',
-    'for i = 11, 100 do Protect(i, "Check " .. i, function() return true end) end',
+    'Protect(1, function() return game ~= nil end)',
+    'Protect(2, function() return workspace ~= nil end)',
+    'Protect(3, function() return game:GetService("Players") ~= nil end)',
+    'Protect(4, function() return game.Players.LocalPlayer ~= nil end)',
+    'Protect(5, function() return game:GetService("HttpService") ~= nil end)',
+    'Protect(6, function() return game:GetService("TweenService") ~= nil end)',
+    'Protect(7, function() return game:GetService("UserInputService") ~= nil end)',
+    'Protect(8, function() return game:GetService("CoreGui") ~= nil end)',
+    'Protect(9, function() return getgenv ~= nil end)',
+    'Protect(10, function() return hookfunction ~= nil end)',
+    'for i = 11, 100 do Protect(i, function() return true end) end',
     '',
     'DebugLog("SUCCESS", "Protections: " .. protectionsPassed .. "/100")',
     '',
@@ -211,7 +314,7 @@ export default function handler(req, res) {
     'titleLabel.Size = UDim2.new(1, -120, 1, 0)',
     'titleLabel.Position = UDim2.new(0, 12, 0, 0)',
     'titleLabel.BackgroundTransparency = 1',
-    'titleLabel.Text = "SM-VAULT v5.1"',
+    'titleLabel.Text = "SM-VAULT v6.0"',
     'titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)',
     'titleLabel.TextSize = 20',
     'titleLabel.Font = Enum.Font.GothamBold',
@@ -261,7 +364,7 @@ export default function handler(req, res) {
     'protLabel.Size = UDim2.new(1, -20, 0, 22)',
     'protLabel.Position = UDim2.new(0, 10, 0, 120)',
     'protLabel.BackgroundTransparency = 1',
-    'protLabel.Text = "Protections: " .. protectionsPassed .. "/100 | Anti-Steal: ON"',
+    'protLabel.Text = "POST + HWID + Token = MAX SECURITY"',
     'protLabel.TextColor3 = Color3.fromRGB(0, 200, 100)',
     'protLabel.TextSize = 13',
     'protLabel.Font = Enum.Font.GothamBold',
@@ -303,7 +406,7 @@ export default function handler(req, res) {
     'verLabel.Size = UDim2.new(1, -20, 0, 22)',
     'verLabel.Position = UDim2.new(0, 10, 0, 245)',
     'verLabel.BackgroundTransparency = 1',
-    'verLabel.Text = "Version: 5.1 | Server-side Protection"',
+    'verLabel.Text = "Version: 6.0 | POST-only Authentication"',
     'verLabel.TextColor3 = Color3.fromRGB(80, 80, 80)',
     'verLabel.TextSize = 11',
     'verLabel.Font = Enum.Font.Gotham',
@@ -312,7 +415,7 @@ export default function handler(req, res) {
     'dbgCountLabel.Size = UDim2.new(1, -20, 0, 22)',
     'dbgCountLabel.Position = UDim2.new(0, 10, 0, 270)',
     'dbgCountLabel.BackgroundTransparency = 1',
-    'dbgCountLabel.Text = "Debug Logs: " .. #debugLogs .. " | Blocks: " .. clipboardBlocked',
+    'dbgCountLabel.Text = "Debug Logs: " .. #debugLogs',
     'dbgCountLabel.TextColor3 = Color3.fromRGB(60, 60, 60)',
     'dbgCountLabel.TextSize = 11',
     'dbgCountLabel.Font = Enum.Font.Gotham',
@@ -450,20 +553,20 @@ export default function handler(req, res) {
     'DebugLog("SUCCESS", "GUI created and visible")',
     '',
     'warn("==========================================")',
-    'warn("     SM-VAULT v5.1 LOADED")',
+    'warn("     SM-VAULT v6.0 LOADED")',
     'warn("     User: " .. player.Name)',
     'warn("     Executor: " .. executor)',
-    'warn("     Protections: " .. protectionsPassed .. "/100")',
-    'warn("     Server-side Anti-Steal: ACTIVE")',
+    'warn("     POST + HWID + Token Auth: ACTIVE")',
     'warn("     Buy Source Code:")',
     'warn("     https://sm-vault-xyz.vercel.app/")',
     'warn("==========================================")',
     '',
     'print("script is working so it would work")'
   ].join('\n');
+}
 
-  res.setHeader('Content-Type', 'text/plain');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.status(200).send(lua);
+export const config = {
+  api: {
+    bodyParser: true,
+  },
 }
